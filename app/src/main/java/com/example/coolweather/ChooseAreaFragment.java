@@ -1,5 +1,6 @@
 package com.example.coolweather;
 
+import android.app.ProgressDialog;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
@@ -11,15 +12,23 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.example.coolweather.db.City;
 import com.example.coolweather.db.County;
 import com.example.coolweather.db.Province;
+import com.example.coolweather.util.HttpUtil;
+import com.example.coolweather.util.Utility;
 
 import org.litepal.crud.DataSupport;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.Response;
 
 /**
  * Created by D22396 on 2017/9/20.
@@ -31,6 +40,7 @@ public class ChooseAreaFragment extends Fragment {
     public static final int LEVEL_CITY = 1;
     public static final int LEVEL_COUNTY = 2;
 
+    private ProgressDialog progressDialog;
     private TextView titleText;
     private Button backButton;
     private ListView mListView;
@@ -159,6 +169,62 @@ public class ChooseAreaFragment extends Fragment {
         }
     }
 
-    private void queryFromServer(String address, String province) {
+    private void queryFromServer(String address, final String type) {
+        showProgressDialog();
+        HttpUtil.sendOkHttpRequest(address, new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                 getActivity().runOnUiThread(new Runnable() {
+                     @Override
+                     public void run() {
+                         closeProgressDialog();
+                         Toast.makeText(getContext(),"加载失败",Toast.LENGTH_SHORT).show();
+                     }
+                 });
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                String responseText = response.body().toString();
+                boolean result = false;
+                if("province".equals(type)){
+                    result = Utility.handleProvinceResponse(responseText);
+                }else if("city".equals(type)){
+                    result = Utility.handleCityResponse(responseText,selectedProvince.getId());
+                }else if("county".equals(type)){
+                    result = Utility.handleCountyResponse(responseText,selectedCity.getId());
+                }
+                if(result){
+                    getActivity().runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            closeProgressDialog();
+                            if("province".equals(type)){
+                                queryProvince();
+                            }else if("city".equals(type)){
+                                queryCities();
+                            }else if("county".equals(type)){
+                                queryCounties();
+                            }
+                        }
+                    });
+                }
+            }
+        });
+    }
+
+    private void closeProgressDialog() {
+        if (progressDialog != null){
+            progressDialog.dismiss();
+        }
+    }
+
+    private void showProgressDialog() {
+        if (progressDialog == null){
+            progressDialog = new ProgressDialog(getActivity());
+            progressDialog.setMessage("正在加载...");
+            progressDialog.setCanceledOnTouchOutside(false);
+        }
+        progressDialog.show();
     }
 }
